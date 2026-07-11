@@ -39,3 +39,7 @@ AntiGravityPacman/
 ## 4. Aesthetic & UI Rules
 * **Theme**: Modern neon/dark theme matching Pacman's arcade retro-futurism (cyberpunk blue, hot pink, lime green, and dark grid lines).
 * **Smooth Animation**: Implement delta time-based movements to ensure frame-rate independent gameplay.
+
+## 5. Git Branching & Review Process
+* **Workflow**: Make all feature edits on separate git feature branches. Commit modifications to the feature branch, and submit the changes to the user for review.
+* **Master Branch Safeguard**: Never commit directly to `main` (or `master`) without explicit user code-review confirmation.

@@ -32,6 +32,11 @@ To ensure consistency and clean code structure, adhere to the following import g
   * Windows (PowerShell): `.venv\Scripts\python.exe`
   * Activation: `& .venv\Scripts\Activate.ps1`
 
-## 5. Session Resumption Guidelines
+## 5. Git Branching & Review Standards
+* **Feature Branches**: For every subsequent change, create a new Git feature branch (e.g., `feature/description` or `branch-name`) off of the `main` branch.
+* **Review Process**: Implement changes on the feature branch, stage and commit them to that branch, and present the changes (e.g., in a walkthrough/diff format) to the user for review.
+* **Merge to Main**: Do not merge or commit directly to the `main` branch until the user explicitly reviews and approves the changes.
+
+## 6. Session Resumption Guidelines
 * At the start of a new session, read this file (`.agents/AGENTS.md`) and the workspace-root `GEMINI.md` to restore the project context, import rules, and python environment details.
 * Maintain a clean directory structure and update the project documentation as development progresses.
