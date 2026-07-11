@@ -1,10 +1,10 @@
 # AntiGravityPacman
 
-An arcade-exact, high-performance 2D Pac-Man clone built in Python 3.10 and Pygame. 
-This game is built with the assistance of Google Antigravity.
+An implementation of Pacman using Google's Antigravity. 
+The purpose of this game is to experience the power and enablement AntiGravity offers during development.
 
-There are still some anoying bugs in this pacman implementation, however it's playable. That it for a spin!!
-Top prio's are ghosts movements and that terrible sound it plays at the moment.
+There are still some anoying bugs in this pacman implementation, however it's playable. Take it for a spin!!
+Top prio pr's to fix: ghosts movements and that terrible sound implementation.
 
 ---
 
