@@ -1,14 +1,18 @@
 # AntiGravityPacman
 
-An arcade-exact, high-performance 2D Pac-Man clone built in Python 3.10 and Pygame. It features a modern cyberpunk neon aesthetic, grid-aligned entity movement, authentic ghost AI behaviors, and programmatically synthesized 60Hz frame-locked audio.
+An arcade-exact, high-performance 2D Pac-Man clone built in Python 3.10 and Pygame. 
+This game is built with the assistance of Google Antigravity.
+
+There are still some anoying bugs in this pacman implementation, however it's playable. That it for a spin!!
+Top prio's are ghosts movements and that terrible sound it plays at the moment.
 
 ---
 
 ## Features
 * **Arcade-Accurate Ghost AI**: Standard individual AI target targeting for Blinky (chase), Pinky (intercept), Inky (sandwich vector), and Clyde (shy/distracted scatter).
 * **60Hz VBLANK Simulation**: Game loop and rendering updates are synced exactly to a 60Hz tick count to simulate vertical blanking.
-* **Retro Programmatic Audio**: Pure synthesized square/triangle wave sound effects (waka-waka, siren, death, ghost-eat) locked to the game's clock.
-* **Cyberpunk Neon Visuals**: High-resolution vector-drawn double-lined maze walls, chomp animations, and worried ghost faces.
+
+
 
 ---
 
