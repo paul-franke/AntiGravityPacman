@@ -62,6 +62,17 @@ class SpriteLoader:
         # F. Load Maze Background
         self._load_maze_background()
 
+        # G. Load Fruit Sprites (scaled to 46x46 pixels - 95% of entity size)
+        for fruit_name in ["cherry", "strawberry", "peach", "apple", "grapes", "galaxian", "bell", "key"]:
+            path = os.path.join(self.asset_dir, f"fruit_{fruit_name}.png")
+            try:
+                sprite = pygame.image.load(path).convert_alpha()
+                # Scale to 46x46
+                scaled_sprite = pygame.transform.scale(sprite, (46, 46))
+                self.cache[f"fruit_{fruit_name}"] = scaled_sprite
+            except Exception as e:
+                print(f"Error loading fruit {fruit_name}: {e}")
+
     def _load_maze_background(self) -> None:
         path = os.path.join(self.asset_dir, "maze_background.png")
         try:
@@ -131,6 +142,10 @@ class SpriteLoader:
         """Retrieve Pacman dying animation sprite based on frame index (0-10)."""
         key = f"pacman_dying_{frame_idx}"
         return self.cache.get(key, self.cache["pacman_closed"])
+
+    def get_fruit_sprite(self, fruit_name: str) -> pygame.Surface:
+        """Retrieve the scaled fruit sprite Surface."""
+        return self.cache.get(f"fruit_{fruit_name}", self.cache["pacman_closed"])
 
     def get_ghost_sprite(self, name: str, dir_x: int, dir_y: int, frame_idx: int, 
                          state: str, frightened_timer: int) -> pygame.Surface:
