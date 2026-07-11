@@ -42,8 +42,8 @@ def crop_and_save(rect: tuple, filename: str) -> None:
 # ==========================================
 # 0. CROP MAZE BACKGROUND
 # ==========================================
-# Original arcade maze is 224x248 pixels at top-left of spritesheet
-crop_and_save((0, 0, 224, 248), "maze_background.png")
+# Original arcade maze starts at x=1 in the spritesheet (shifted to align correctly)
+crop_and_save((1, 0, 224, 248), "maze_background.png")
 
 # ==========================================
 # 1. CROP PACMAN SPRITES

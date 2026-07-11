@@ -257,25 +257,41 @@ class Game:
         if self.state == STATE_VICTORY:
             # Flash wall every 15 frames
             flash = (self.state_timer // 15) % 2 == 0
-        self.board.draw(self.screen, self.sprites, flash)
-
-        # 2. Draw Entities
-        if self.state != STATE_DYING or self.state_timer > 90:
-            # Don't draw ghosts during the actual death spinning animation
-            for ghost in self.ghosts:
-                ghost.draw(self.screen, self.sprites)
         
-        if self.state == STATE_DYING and self.state_timer <= 90:
-            # Draw pixel-art Pacman dying animation
-            cx = self.pacman.x + TILE_SIZE // 2
-            cy = self.pacman.y + TILE_SIZE // 2
-            progress = max(0, self.state_timer) / 90.0
-            frame_idx = int((1.0 - progress) * 10)
-            frame_idx = max(0, min(10, frame_idx))
-            sprite = self.sprites.get_pacman_dying_sprite(frame_idx)
-            self.screen.blit(sprite, (cx - 24, cy - 24))
-        else:
-            self.pacman.draw(self.screen, self.sprites)
+        # In start screen, alternate between showing empty maze (with pellets) and showing the ghosts list
+        draw_maze = True
+        if self.state == STATE_START:
+            show_maze = (self.game_ticks // 300) % 2 == 1
+            if not show_maze:
+                draw_maze = False
+                
+        if draw_maze:
+            self.board.draw(self.screen, self.sprites, flash)
+
+        # 2. Draw Entities (skip only during start screen's ghost list phase)
+        draw_entities = True
+        if self.state == STATE_START:
+            show_maze = (self.game_ticks // 300) % 2 == 1
+            if not show_maze:
+                draw_entities = False
+
+        if draw_entities:
+            if self.state != STATE_DYING or self.state_timer > 90:
+                # Don't draw ghosts during the actual death spinning animation
+                for ghost in self.ghosts:
+                    ghost.draw(self.screen, self.sprites)
+            
+            if self.state == STATE_DYING and self.state_timer <= 90:
+                # Draw pixel-art Pacman dying animation
+                cx = self.pacman.x + TILE_SIZE // 2
+                cy = self.pacman.y + TILE_SIZE // 2
+                progress = max(0, self.state_timer) / 90.0
+                frame_idx = int((1.0 - progress) * 10)
+                frame_idx = max(0, min(10, frame_idx))
+                sprite = self.sprites.get_pacman_dying_sprite(frame_idx)
+                self.screen.blit(sprite, (cx - 24, cy - 24))
+            else:
+                self.pacman.draw(self.screen, self.sprites)
 
         # 3. Draw HUD Texts (Arcade accurate locations)
         # Score header
@@ -307,12 +323,22 @@ class Game:
             # Retro Arcade Start Screen
             title_txt = self.large_font.render("ANTIGRAVITY PAC-MAN", True, COLOR_PACMAN)
             prompt_txt = self.font.render("PRESS ANY KEY TO PLAY", True, COLOR_CYAN)
-            self.screen.blit(title_txt, (SCREEN_WIDTH // 2 - title_txt.get_width() // 2, TILE_SIZE * 12))
+            
+            show_maze = (self.game_ticks // 300) % 2 == 1
+            if not show_maze:
+                self.screen.blit(title_txt, (SCREEN_WIDTH // 2 - title_txt.get_width() // 2, TILE_SIZE * 6))
+                # Display colors and names of ghosts as retro list
+                self._draw_menu_ghost_info()
+            
+            # Flash text "PRESS ANY KEY TO PLAY" at the same height as the "READY!" text (row 20) in both states
             if (self.game_ticks // 30) % 2 == 0:
-                self.screen.blit(prompt_txt, (SCREEN_WIDTH // 2 - prompt_txt.get_width() // 2, TILE_SIZE * 22))
-
-            # Display colors and names of ghosts as retro list
-            self._draw_menu_ghost_info()
+                txt_w = prompt_txt.get_width()
+                txt_h = prompt_txt.get_height()
+                tx = SCREEN_WIDTH // 2 - txt_w // 2
+                ty = TILE_SIZE * 20
+                # Clear background walls behind the text using a black rectangle
+                pygame.draw.rect(self.screen, COLOR_BLACK, (tx - 10, ty - 4, txt_w + 20, txt_h + 8))
+                self.screen.blit(prompt_txt, (tx, ty))
 
         elif self.state == STATE_READY:
             ready_txt = self.large_font.render("READY!", True, COLOR_PACMAN)
@@ -338,7 +364,7 @@ class Game:
             ("clyde", "orange", "POKEY", COLOR_ORANGE)
         ]
 
-        y_start = TILE_SIZE * 16
+        y_start = TILE_SIZE * 10
         for name, col_name, desc, color in ghosts_meta:
             # Draw pixel-art ghost representation looking right
             gx = TILE_SIZE * 4

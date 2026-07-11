@@ -65,7 +65,7 @@ class SpriteLoader:
     def _load_maze_background(self) -> None:
         path = os.path.join(self.asset_dir, "maze_background.png")
         try:
-            surf = pygame.image.load(path).convert()
+            surf = pygame.image.load(path).convert_alpha()
             
             # Erase baked-in dots and power pellets from the 224x248 raw surface
             # to make it a clean, empty maze background.
