@@ -69,6 +69,15 @@ class Ghost(pygame.sprite.Sprite):
     def grid_pos(self) -> Tuple[int, int]:
         return self.x // TILE_SIZE, self.y // TILE_SIZE
 
+    def snap_to_grid(self) -> None:
+        """Snap the ghost's pixel coordinates to the nearest grid tile center."""
+        col = round(self.x / TILE_SIZE)
+        row = round(self.y / TILE_SIZE)
+        self.x = col * TILE_SIZE
+        self.y = row * TILE_SIZE
+        self.rect.x = self.x
+        self.rect.y = self.y
+
     def set_state(self, state: str, duration_frames: int = 0) -> None:
         """Change the ghost state and adjust speed parameters."""
         # Eaten ghosts cannot become frightened
@@ -86,6 +95,9 @@ class Ghost(pygame.sprite.Sprite):
         elif state in ("chase", "scatter"):
             self.speed = GHOST_SPEED_NORMAL
             self.frightened_timer = 0
+
+        # Always snap to grid on state change to ensure alignment at new speeds
+        self.snap_to_grid()
 
     def update(self, board: "Board", pacman: "Pacman", blinky: "Ghost") -> None:
         """Calculate AI decisions at grid boundaries and update coordinates."""
