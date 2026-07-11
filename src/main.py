@@ -11,6 +11,21 @@ from src.pacman import Pacman
 from src.ghost import Ghost
 from src.sound import ArcadeSoundManager
 
+LEVEL_FRUITS = {
+    1: "cherry",
+    2: "strawberry",
+    3: "peach",
+    4: "peach",
+    5: "apple",
+    6: "apple",
+    7: "grapes",
+    8: "grapes",
+    9: "galaxian",
+    10: "galaxian",
+    11: "bell",
+    12: "bell"
+}
+
 class Game:
     """Main game coordinator acting as the VBLANK interrupt simulator and engine."""
 
@@ -306,17 +321,25 @@ class Game:
         self.screen.blit(hs_val, (TILE_SIZE * 13, TILE_SIZE * 2))
 
         # Bottom Lives Footer
-        # Draw small yellow circles to represent lives
+        # Draw lives using the left-facing Pacman sprite scaled to 46x46 (95% of entity size)
+        life_sprite = self.sprites.get_pacman_sprite(-1, 0, 1)
+        life_sprite_scaled = pygame.transform.scale(life_sprite, (46, 46))
         for i in range(self.lives - 1):
-            lx = TILE_SIZE * (2 + i * 2)
-            ly = TILE_SIZE * 34 + TILE_SIZE // 2
-            pygame.draw.circle(self.screen, COLOR_PACMAN, (lx, ly), TILE_SIZE // 2 - 2)
-            # Wedge cutout facing right
-            pygame.draw.polygon(self.screen, COLOR_BLACK, [(lx, ly), (lx + TILE_SIZE, ly - TILE_SIZE // 2), (lx + TILE_SIZE, ly + TILE_SIZE // 2)])
+            lx = i * 48
+            ly = TILE_SIZE * 34 + 1
+            self.screen.blit(life_sprite_scaled, (lx, ly))
 
-        # Draw level indicator (Fruit space, simplified to text for retro styling)
-        level_txt = self.font.render(f"L{self.level}", True, COLOR_WHITE)
-        self.screen.blit(level_txt, (TILE_SIZE * 24, TILE_SIZE * 34))
+        # Draw level fruits bottom right (max 5 fruits) at 46x46 size
+        max_fruits = 5
+        start_lvl = max(1, self.level - max_fruits + 1)
+        end_lvl = self.level
+        for lvl in range(start_lvl, end_lvl + 1):
+            fruit_name = LEVEL_FRUITS.get(lvl, "key")
+            sprite = self.sprites.get_fruit_sprite(fruit_name)
+            # Oldest fruit (start_lvl) remains on the right, newer fruits are added to the left
+            fx = 626 - (lvl - start_lvl) * 48
+            fy = TILE_SIZE * 34 + 1
+            self.screen.blit(sprite, (fx, fy))
 
         # 4. State Texts Overlay
         if self.state == STATE_START:

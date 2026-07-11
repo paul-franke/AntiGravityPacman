@@ -106,5 +106,21 @@ crop_and_save((600, 80, 16, 16), "ghost_eyes_left.png")
 crop_and_save((616, 80, 16, 16), "ghost_eyes_up.png")
 crop_and_save((632, 80, 16, 16), "ghost_eyes_down.png")
 
+# ==========================================
+# 5. CROP FRUIT SPRITES
+# ==========================================
+fruits = {
+    "cherry": (488, 48),
+    "strawberry": (504, 48),
+    "peach": (520, 48),
+    "apple": (536, 48),
+    "grapes": (552, 48),
+    "galaxian": (568, 48),
+    "bell": (584, 48),
+    "key": (600, 48)
+}
+for name, (x, y) in fruits.items():
+    crop_and_save((x, y, 16, 16), f"fruit_{name}.png")
+
 print("All arcade-perfect sprites successfully cropped and saved!")
 pygame.quit()
