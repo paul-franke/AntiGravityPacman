@@ -5,6 +5,7 @@ from typing import Tuple, List, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.board import Board
     from src.pacman import Pacman
+    from src.sprites import SpriteLoader
 from src.settings import (
     TILE_SIZE, COLOR_RED, COLOR_PINK, COLOR_CYAN, COLOR_ORANGE, COLOR_BLACK,
     COLOR_BLUE_FRIGHTENED, COLOR_WHITE_FRIGHTENED, COLS, ROWS,
@@ -64,6 +65,7 @@ class Ghost(pygame.sprite.Sprite):
             self.exit_delay = 180  # 3 seconds delay
         else:  # clyde
             self.exit_delay = 360  # 6 seconds delay
+        self.anim_tick = 0
 
     @property
     def grid_pos(self) -> Tuple[int, int]:
@@ -179,6 +181,7 @@ class Ghost(pygame.sprite.Sprite):
 
         self.rect.x = self.x
         self.rect.y = self.y
+        self.anim_tick = (self.anim_tick + 1) % 20
 
     def _update_target(self, pacman: "Pacman", blinky: "Ghost") -> None:
         """Calculate the target tile coordinate depending on state and individual AI."""
@@ -282,87 +285,14 @@ class Ghost(pygame.sprite.Sprite):
         if best_move:
             self.dir_x, self.dir_y = best_move
 
-    def draw(self, surface: pygame.Surface) -> None:
-        """Render the ghost entity with classic arcade shape and dynamic eyes."""
+    def draw(self, surface: pygame.Surface, sprites: "SpriteLoader") -> None:
+        """Render the ghost entity using pixel-art tile bitmaps with wiggle animation."""
         cx = self.x + TILE_SIZE // 2
         cy = self.y + TILE_SIZE // 2
-        r = TILE_SIZE // 2
 
-        # 1. Choose body color
-        if self.state == "frightened":
-            # If running out of time, flash between blue and white
-            if self.frightened_timer < 120 and (self.frightened_timer // 15) % 2 == 0:
-                body_color = COLOR_WHITE_FRIGHTENED
-            else:
-                body_color = COLOR_BLUE_FRIGHTENED
-        elif self.state == "eaten":
-            body_color = None  # only draw eyes
-        else:
-            body_color = self.color
+        # Skirt animation toggles between 0 and 1 every 10 frames
+        frame_idx = self.anim_tick // 10
+        sprite = sprites.get_ghost_sprite(self.name, self.dir_x, self.dir_y, frame_idx, self.state, self.frightened_timer)
 
-        # 2. Draw ghost body (arched head, straight sides, wavy skirt)
-        if body_color:
-            # Draw semi-circle for head
-            pygame.draw.circle(surface, body_color, (cx, cy), r)
-            # Draw square bottom half
-            pygame.draw.rect(surface, body_color, (self.x, cy, TILE_SIZE, r))
-            
-            # Draw wavy bottom skirt (triangles)
-            # We draw three small triangles at the bottom skirt
-            skirt_y = self.y + TILE_SIZE
-            skirt_w = TILE_SIZE // 3
-            for i in range(3):
-                bx = self.x + i * skirt_w
-                # triangle points
-                pt1 = (bx, skirt_y)
-                pt2 = (bx + skirt_w // 2, skirt_y - r // 3)
-                pt3 = (bx + skirt_w, skirt_y)
-                pygame.draw.polygon(surface, COLOR_BLACK, [pt1, pt2, pt3])
-
-        # 3. Draw Eyes
-        eye_radius = r // 2
-        pupil_radius = r // 4
-        
-        # Eye horizontal offset
-        eye_offset_x = r // 3
-
-        # Left and Right eye centers
-        left_eye_cx = cx - eye_offset_x
-        right_eye_cx = cx + eye_offset_x
-        eye_cy = cy - r // 4
-
-        # Pupil direction offsets
-        dx, dy = self.dir_x, self.dir_y
-        if dx == 0 and dy == 0:
-            dx, dy = 0, -1
-
-        pupil_dx = dx * (eye_radius - pupil_radius)
-        pupil_dy = dy * (eye_radius - pupil_radius)
-
-        if self.state == "frightened":
-            # Frightened face colors: orange/salmon if body is blue, red if body is white
-            face_color = (255, 184, 82) if body_color == COLOR_BLUE_FRIGHTENED else (255, 0, 0)
-            
-            # Small worried eyes
-            pygame.draw.circle(surface, face_color, (int(left_eye_cx), int(eye_cy)), 2)
-            pygame.draw.circle(surface, face_color, (int(right_eye_cx), int(eye_cy)), 2)
-            
-            # Wavy mouth
-            mouth_y = cy + r // 4
-            pygame.draw.lines(surface, face_color, False, [
-                (cx - r // 2, mouth_y),
-                (cx - r // 4, mouth_y - 2),
-                (cx, mouth_y),
-                (cx + r // 4, mouth_y - 2),
-                (cx + r // 2, mouth_y)
-            ], 1)
-        else:
-            # Normal or eaten eyes: white circles with blue pupils
-            # Draw white eyeballs
-            pygame.draw.circle(surface, (255, 255, 255), (int(left_eye_cx), int(eye_cy)), eye_radius)
-            pygame.draw.circle(surface, (255, 255, 255), (int(right_eye_cx), int(eye_cy)), eye_radius)
-
-            # Draw blue pupils pointing in moving direction
-            pupil_color = (0, 0, 255)
-            pygame.draw.circle(surface, pupil_color, (int(left_eye_cx + pupil_dx), int(eye_cy + pupil_dy)), pupil_radius)
-            pygame.draw.circle(surface, pupil_color, (int(right_eye_cx + pupil_dx), int(eye_cy + pupil_dy)), pupil_radius)
+        # Blit 48x48 sprite centered on the tile (centered offset is 24)
+        surface.blit(sprite, (cx - 24, cy - 24))

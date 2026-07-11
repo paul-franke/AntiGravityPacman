@@ -34,6 +34,11 @@ class Game:
         self.sounds = ArcadeSoundManager()
         self.sounds.initialize_sounds()
 
+        # Initialize Sprite Loader
+        from src.sprites import SpriteLoader
+        self.sprites = SpriteLoader()
+        self.sprites.load_sprites()
+
         # Initialize Game Components
         self.board = Board()
         
@@ -252,29 +257,25 @@ class Game:
         if self.state == STATE_VICTORY:
             # Flash wall every 15 frames
             flash = (self.state_timer // 15) % 2 == 0
-        self.board.draw(self.screen, flash)
+        self.board.draw(self.screen, self.sprites, flash)
 
         # 2. Draw Entities
         if self.state != STATE_DYING or self.state_timer > 90:
             # Don't draw ghosts during the actual death spinning animation
             for ghost in self.ghosts:
-                ghost.draw(self.screen)
+                ghost.draw(self.screen, self.sprites)
         
         if self.state == STATE_DYING and self.state_timer <= 90:
-            # Draw spinning/shrinking Pacman death animation
+            # Draw pixel-art Pacman dying animation
             cx = self.pacman.x + TILE_SIZE // 2
             cy = self.pacman.y + TILE_SIZE // 2
-            # shrink radius from TILE_SIZE//2 down to 0
             progress = max(0, self.state_timer) / 90.0
-            r = int((TILE_SIZE // 2) * progress)
-            if r > 1:
-                pygame.draw.circle(self.screen, COLOR_PACMAN, (cx, cy), r)
-                # Cutout wedge (widens as it dies)
-                angle = (1.0 - progress) * 3.14
-                p1_x = cx + r * float(2.0)  # simple slice
-                pygame.draw.polygon(self.screen, COLOR_BLACK, [(cx, cy), (cx + r, cy - r), (cx + r, cy + r)])
+            frame_idx = int((1.0 - progress) * 10)
+            frame_idx = max(0, min(10, frame_idx))
+            sprite = self.sprites.get_pacman_dying_sprite(frame_idx)
+            self.screen.blit(sprite, (cx - 24, cy - 24))
         else:
-            self.pacman.draw(self.screen)
+            self.pacman.draw(self.screen, self.sprites)
 
         # 3. Draw HUD Texts (Arcade accurate locations)
         # Score header
@@ -339,17 +340,11 @@ class Game:
 
         y_start = TILE_SIZE * 16
         for name, col_name, desc, color in ghosts_meta:
-            # Draw tiny ghost representation
+            # Draw pixel-art ghost representation looking right
             gx = TILE_SIZE * 4
             gy = y_start
-            pygame.draw.circle(self.screen, color, (gx + TILE_SIZE // 2, gy + TILE_SIZE // 2), TILE_SIZE // 2)
-            pygame.draw.rect(self.screen, color, (gx, gy + TILE_SIZE // 2, TILE_SIZE, TILE_SIZE // 2))
-            
-            # White eyeballs, blue pupils looking right
-            pygame.draw.circle(self.screen, (255, 255, 255), (gx + 6, gy + 8), 3)
-            pygame.draw.circle(self.screen, (255, 255, 255), (gx + 18, gy + 8), 3)
-            pygame.draw.circle(self.screen, (0, 0, 255), (gx + 8, gy + 8), 1)
-            pygame.draw.circle(self.screen, (0, 0, 255), (gx + 20, gy + 8), 1)
+            sprite = self.sprites.get_ghost_sprite(name, 1, 0, 0, "chase", 0)
+            self.screen.blit(sprite, (gx + TILE_SIZE // 2 - 24, gy + TILE_SIZE // 2 - 24))
 
             # Character info text
             char_txt = self.font.render(f"- {desc.upper()} \"{name.upper()}\"", True, color)

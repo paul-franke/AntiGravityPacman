@@ -1,5 +1,7 @@
 import pygame
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.sprites import SpriteLoader
 from src.settings import TILE_SIZE, COLOR_WALL, COLOR_PELLET, COLOR_WHITE, COLS, ROWS
 
 # Classic Pacman Maze representation (31 rows x 28 columns)
@@ -102,10 +104,12 @@ class Board:
                 return 50, 'power'
         return 0, 'none'
 
-    def draw(self, surface: pygame.Surface, flash_walls: bool = False) -> None:
-        """Draw the maze walls, pellets, and power pellets."""
-        wall_color = COLOR_WHITE if flash_walls else COLOR_WALL
+    def draw(self, surface: pygame.Surface, sprites: "SpriteLoader", flash_walls: bool = False) -> None:
+        """Draw the maze background image, pellets, and power pellets."""
+        # 1. Blit the pre-scaled maze background at the vertical maze offset (row 3, which is 3 * TILE_SIZE = 72)
+        surface.blit(sprites.get_maze_background(flash_walls), (0, ROW_OFFSET * TILE_SIZE))
 
+        # 2. Draw pellets and power pellets on top
         for r in range(len(self.grid)):
             screen_row = r + ROW_OFFSET
             for c in range(COLS):
@@ -113,28 +117,15 @@ class Board:
                 x = c * TILE_SIZE
                 y = screen_row * TILE_SIZE
 
-                if tile == '#':
-                    # Draw a nice arcade style wall border
-                    # Draw a solid dark block, outline with neon blue double lines
-                    pygame.draw.rect(surface, (10, 10, 30), (x, y, TILE_SIZE, TILE_SIZE))
-                    
-                    # Double-lined effect using outer and inner border rectangles
-                    pygame.draw.rect(surface, wall_color, (x, y, TILE_SIZE, TILE_SIZE), 1)
-                    pygame.draw.rect(surface, wall_color, (x + 3, y + 3, TILE_SIZE - 6, TILE_SIZE - 6), 1)
-                elif tile == '=':
-                    # Draw ghost gate line
-                    pygame.draw.line(surface, COLOR_WHITE, (x, y + TILE_SIZE // 2), 
-                                     (x + TILE_SIZE, y + TILE_SIZE // 2), 3)
-                elif tile == '.':
-                    # Normal Pellet: centered small square or circle
+                if tile == '.':
+                    # Normal Pellet: centered small square (arcade style is 2x2 pixels, at 3x scale that's 6x6 pixels)
                     px = x + TILE_SIZE // 2
                     py = y + TILE_SIZE // 2
-                    pygame.draw.circle(surface, COLOR_PELLET, (px, py), TILE_SIZE // 8)
+                    pygame.draw.rect(surface, (255, 184, 82), (px - 3, py - 3, 6, 6))
                 elif tile == 'o':
-                    # Power Pellet: larger pulsing circle (alternating frames)
-                    # Pulsing logic handled by main tick count
+                    # Power Pellet: larger blinking circle
                     px = x + TILE_SIZE // 2
                     py = y + TILE_SIZE // 2
                     ticks = pygame.time.get_ticks() // 200
                     if ticks % 2 == 0:
-                        pygame.draw.circle(surface, COLOR_PELLET, (px, py), TILE_SIZE // 3)
+                        pygame.draw.circle(surface, (255, 184, 82), (px, py), TILE_SIZE // 3)
