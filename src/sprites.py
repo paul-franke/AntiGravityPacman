@@ -66,6 +66,19 @@ class SpriteLoader:
         path = os.path.join(self.asset_dir, "maze_background.png")
         try:
             surf = pygame.image.load(path).convert()
+            
+            # Erase baked-in dots and power pellets from the 224x248 raw surface
+            # to make it a clean, empty maze background.
+            from src.board import MAZE_LAYOUT
+            for r, row_str in enumerate(MAZE_LAYOUT):
+                for c, char in enumerate(row_str):
+                    if char == '.':
+                        # Erase 2x2 normal dot using a 6x6 black rect centered at the 8x8 tile
+                        pygame.draw.rect(surf, (0, 0, 0), (c * 8 + 1, r * 8 + 1, 6, 6))
+                    elif char == 'o':
+                        # Erase large power pellet using a 10x8 black rect covering the 8x8 tile and its 1px shift
+                        pygame.draw.rect(surf, (0, 0, 0), (c * 8 - 1, r * 8, 10, 8))
+
             # Scale from 224x248 to 672x744 (3x scale factor)
             self.maze_background = pygame.transform.scale(surf, (672, 744))
             

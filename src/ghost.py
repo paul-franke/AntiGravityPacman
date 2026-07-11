@@ -31,7 +31,7 @@ SCATTER_TARGETS = {
 class Ghost(pygame.sprite.Sprite):
     """Base class for Pacman ghost entities with individual AI routines."""
 
-    def __init__(self, name: str, color: Tuple[int, int, int], spawn_col: int, spawn_row: int) -> None:
+    def __init__(self, name: str, color: Tuple[int, int, int], spawn_col: float, spawn_row: float) -> None:
         super().__init__()
         self.name = name.lower()
         self.color = color

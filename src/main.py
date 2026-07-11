@@ -46,11 +46,11 @@ class Game:
         # Maze starts offset by 3, so row 26 is index 23 of the layout grid (3 + 23 = 26)
         self.pacman = Pacman(14, 26)
 
-        # Ghost spawn locations (cols 13-15, row 17 inside house, except Blinky at row 14 outside)
+        # Ghost spawn locations (inside house: Inky at 11.5, Pinky at 13.5, Clyde at 15.5, except Blinky outside at 13)
         self.blinky = Ghost("Blinky", COLOR_RED, 13, 14)
-        self.pinky = Ghost("Pinky", COLOR_PINK, 13, 17)
-        self.inky = Ghost("Inky", COLOR_CYAN, 11, 17)
-        self.clyde = Ghost("Clyde", COLOR_ORANGE, 15, 17)
+        self.pinky = Ghost("Pinky", COLOR_PINK, 13.5, 17)
+        self.inky = Ghost("Inky", COLOR_CYAN, 11.5, 17)
+        self.clyde = Ghost("Clyde", COLOR_ORANGE, 15.5, 17)
 
         self.ghosts: List[Ghost] = [self.blinky, self.pinky, self.inky, self.clyde]
 
