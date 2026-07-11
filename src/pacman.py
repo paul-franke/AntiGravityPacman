@@ -1,7 +1,8 @@
-import math
 import pygame
-from typing import Tuple
-from src.settings import TILE_SIZE, COLOR_PACMAN, COLOR_BLACK, COLS, ROWS, PACMAN_SPEED_NORMAL
+from typing import Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.sprites import SpriteLoader
+from src.settings import TILE_SIZE, COLS, ROWS, PACMAN_SPEED_NORMAL
 
 class Pacman(pygame.sprite.Sprite):
     """Represents the player-controlled Pacman entity."""
@@ -25,7 +26,7 @@ class Pacman(pygame.sprite.Sprite):
         self.next_dir_x = -1
         self.next_dir_y = 0
         self.speed = PACMAN_SPEED_NORMAL
-        self.angle_offset = 0.0  # mouth animation angle
+        self.anim_tick = 0
         self.chomping = True
 
     @property
@@ -47,11 +48,9 @@ class Pacman(pygame.sprite.Sprite):
         """Update Pacman's position and animation synced to 60Hz clock."""
         # 1. Animation tick
         if self.chomping and (self.dir_x != 0 or self.dir_y != 0):
-            # Fluctuates between 0.0 (closed) and 0.8 (wide open)
-            ticks = pygame.time.get_ticks()
-            self.angle_offset = 0.4 * (1.0 + math.sin(ticks * 0.025))
+            self.anim_tick = (self.anim_tick + 1) % 16
         else:
-            self.angle_offset = 0.2
+            self.anim_tick = 0
 
         # 2. Movement logic - only check turn decisions at grid boundaries
         is_aligned_x = (self.x % TILE_SIZE == 0)
@@ -100,37 +99,15 @@ class Pacman(pygame.sprite.Sprite):
         self.rect.x = self.x
         self.rect.y = self.y
 
-    def draw(self, surface: pygame.Surface) -> None:
-        """Render Pacman with a dynamic vector-drawn chomping mouth."""
-        # Calculate center and radius of circle
+    def draw(self, surface: pygame.Surface, sprites: "SpriteLoader") -> None:
+        """Render Pacman with a dynamic pixel-art sprite sheet tile bitmap."""
+        # Calculate center coordinates of the tile
         cx = self.x + TILE_SIZE // 2
         cy = self.y + TILE_SIZE // 2
-        r = TILE_SIZE // 2
 
-        # Draw the yellow base circle
-        pygame.draw.circle(surface, COLOR_PACMAN, (cx, cy), r)
-
-        # Draw the mouth cutout (black triangle) if moving and mouth is open
-        if self.dir_x != 0 or self.dir_y != 0:
-            # Determine base angle of movement direction in radians
-            if self.dir_x == 1:
-                base_angle = 0.0
-            elif self.dir_x == -1:
-                base_angle = math.pi
-            elif self.dir_y == 1:
-                base_angle = math.pi / 2
-            else:  # self.dir_y == -1
-                base_angle = -math.pi / 2
-
-            # Calculate mouth wedge boundary coordinates
-            theta = self.angle_offset
-            p1_x = cx + r * math.cos(base_angle - theta)
-            p1_y = cy + r * math.sin(base_angle - theta)
-            p2_x = cx + r * math.cos(base_angle + theta)
-            p2_y = cy + r * math.sin(base_angle + theta)
-
-            # Draw the wedge in black to slice out the mouth
-            pygame.draw.polygon(surface, COLOR_BLACK, [(cx, cy), (p1_x, p1_y), (p2_x, p2_y)])
-        else:
-            # Just draw a closed mouth slice (small black line) pointing left (default spawn look)
-            pygame.draw.line(surface, COLOR_BLACK, (cx, cy), (cx - r, cy), 1)
+        # Cycle: 0 (closed) -> 1 (semi) -> 2 (open) -> 3 (semi)
+        frame_idx = self.anim_tick // 4
+        sprite = sprites.get_pacman_sprite(self.dir_x, self.dir_y, frame_idx)
+        
+        # Blit the 48x48 sprite centered on the tile (centered offset is 24)
+        surface.blit(sprite, (cx - 24, cy - 24))
