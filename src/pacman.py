@@ -32,7 +32,7 @@ class Pacman(pygame.sprite.Sprite):
     @property
     def grid_pos(self) -> Tuple[int, int]:
         """Return current grid (col, row) position."""
-        return self.x // TILE_SIZE, self.y // TILE_SIZE
+        return int(self.x // TILE_SIZE), int(self.y // TILE_SIZE)
 
     def set_direction(self, dx: int, dy: int) -> None:
         """Queue the next direction. If reverse, change direction immediately."""

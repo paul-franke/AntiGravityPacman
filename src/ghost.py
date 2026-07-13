@@ -70,7 +70,7 @@ class Ghost(pygame.sprite.Sprite):
 
     @property
     def grid_pos(self) -> Tuple[int, int]:
-        return self.x // TILE_SIZE, self.y // TILE_SIZE
+        return int(self.x // TILE_SIZE), int(self.y // TILE_SIZE)
 
     def snap_to_grid(self) -> None:
         """Snap the ghost's pixel coordinates to the nearest grid tile center."""
