@@ -54,6 +54,7 @@ class Ghost(pygame.sprite.Sprite):
         self.rect.x = self.x
         self.rect.y = self.y
         self.in_house = True
+        self.elroy_mode = 0  # 0 = normal, 1 = Elroy 1, 2 = Elroy 2 (only for Blinky)
         
         # Guide exit delays
         if self.name == "blinky":
@@ -66,10 +67,11 @@ class Ghost(pygame.sprite.Sprite):
         else:  # clyde
             self.exit_delay = 360  # 6 seconds delay
         self.anim_tick = 0
+        self.step_count = 0
 
     @property
     def grid_pos(self) -> Tuple[int, int]:
-        return self.x // TILE_SIZE, self.y // TILE_SIZE
+        return int(self.x // TILE_SIZE), int(self.y // TILE_SIZE)
 
     def snap_to_grid(self) -> None:
         """Snap the ghost's pixel coordinates to the nearest grid tile center."""
@@ -80,18 +82,25 @@ class Ghost(pygame.sprite.Sprite):
         self.rect.x = self.x
         self.rect.y = self.y
 
+    def reverse_direction(self) -> None:
+        """Immediately reverse the current movement direction of the ghost."""
+        self.dir_x = -self.dir_x
+        self.dir_y = -self.dir_y
+
     def set_state(self, state: str, duration_frames: int = 0) -> None:
         """Change the ghost state and adjust speed parameters."""
         # Eaten ghosts cannot become frightened
         if self.state == "eaten" and state == "frightened":
             return
 
+        old_state = self.state
         self.state = state
         if state == "frightened":
             self.speed = GHOST_SPEED_FRIGHTENED
             self.frightened_timer = duration_frames
-            # Reverse direction immediately when frightened (arcade behavior)
-            self.dir_x, self.dir_y = -self.dir_x, -self.dir_y
+            # Reverse direction immediately when entering frightened state (arcade behavior)
+            if old_state != "frightened" and not self.in_house:
+                self.reverse_direction()
         elif state == "eaten":
             self.speed = GHOST_SPEED_EATEN
         elif state in ("chase", "scatter"):
@@ -101,8 +110,63 @@ class Ghost(pygame.sprite.Sprite):
         # Always snap to grid on state change to ensure alignment at new speeds
         self.snap_to_grid()
 
-    def update(self, board: "Board", pacman: "Pacman", blinky: "Ghost") -> None:
+    def update_elroy_status(self, pellets_left: int, level: int) -> None:
+        """Update Blinky's Cruise Elroy mode status based on remaining pellets and level."""
+        if self.name != "blinky":
+            return
+            
+        # Determine Cruise Elroy thresholds based on level
+        if level == 1:
+            elroy_1_threshold = 20
+            elroy_2_threshold = 10
+        elif level in (2, 3, 4):
+            elroy_1_threshold = 30
+            elroy_2_threshold = 15
+        else:
+            elroy_1_threshold = 40
+            elroy_2_threshold = 20
+            
+        if pellets_left <= elroy_2_threshold:
+            self.elroy_mode = 2
+        elif pellets_left <= elroy_1_threshold:
+            self.elroy_mode = 1
+        else:
+            self.elroy_mode = 0
+
+    def update(self, board: "Board", pacman: "Pacman", blinky: "Ghost", level: int) -> None:
         """Calculate AI decisions at grid boundaries and update coordinates."""
+        # Update Cruise Elroy status and speed for Blinky
+        if self.name == "blinky":
+            old_mode = self.elroy_mode
+            self.update_elroy_status(board.pellets_left, level)
+            # Snap to grid on Elroy mode change to prevent floating through walls
+            if self.elroy_mode != old_mode:
+                self.snap_to_grid()
+
+        # Determine ghost speed based on level and Cruise Elroy state
+        if self.state == "frightened":
+            self.speed = GHOST_SPEED_FRIGHTENED  # 1
+        elif self.state == "eaten":
+            self.speed = GHOST_SPEED_EATEN  # 4
+        else:
+            # We run at full normal speed 2.0. If early level, frame-skipping creates the 75% speed.
+            self.speed = GHOST_SPEED_NORMAL  # 2
+            if self.name == "blinky" and self.elroy_mode == 2 and level >= 5:
+                self.speed = 3  # Cruise Elroy 2 (level 5+)
+        
+        # Determine if we should reduce speed by skipping every 4th frame (75% speed reduction for early levels 1-4)
+        if level <= 4 and self.state in ("chase", "scatter") and not self.in_house:
+            # Cruise Elroy 2 Blinky runs at full 100% speed (no skipping)
+            if not (self.name == "blinky" and self.elroy_mode == 2):
+                self.step_count = (self.step_count + 1) % 4
+                if self.step_count == 0:
+                    # Skip update movement but still animate legs/eyes bounce if inside house (handled before this)
+                    # For active ghosts, just update animation tick and return to keep position integer-aligned
+                    self.anim_tick = (self.anim_tick + 1) % 20
+                    self.rect.x = self.x
+                    self.rect.y = self.y
+                    return
+        
         # 1. Handle house exit logic
         if self.in_house:
             if self.exit_delay > 0:
@@ -149,10 +213,12 @@ class Ghost(pygame.sprite.Sprite):
                 self.set_state("chase")
 
         # 3. Target calculation (if aligned with grid, choose next direction)
-        is_aligned_x = (self.x % TILE_SIZE == 0)
-        is_aligned_y = (self.y % TILE_SIZE == 0)
+        is_aligned_x = (abs(self.x - round(self.x / TILE_SIZE) * TILE_SIZE) < 0.01)
+        is_aligned_y = (abs(self.y - round(self.y / TILE_SIZE) * TILE_SIZE) < 0.01)
 
         if is_aligned_x and is_aligned_y:
+            # Snap to grid to prevent alignment drift from float math
+            self.snap_to_grid()
             # Reached a tile boundary. Choose next direction
             self._update_target(pacman, blinky)
             self._make_turn_decision(board)
@@ -164,13 +230,12 @@ class Ghost(pygame.sprite.Sprite):
         # 5. Handle eaten ghost returning home completion
         if self.state == "eaten":
             home_col, home_row = 13, 14
-            curr_col, curr_row = self.grid_pos
             if abs(self.x - home_col * TILE_SIZE) < TILE_SIZE and abs(self.y - home_row * TILE_SIZE) < TILE_SIZE:
-                # Returned home, revive!
-                self.x = home_col * TILE_SIZE
-                self.y = home_row * TILE_SIZE
+                # Returned home, enter the den and revive!
+                self.x = 13 * TILE_SIZE
+                self.y = 17 * TILE_SIZE
                 self.in_house = True
-                self.exit_delay = 60  # Bounce in house for 1 second before reviving
+                self.exit_delay = 60  # Bounce inside the den for 1 second before exiting again
                 self.set_state("chase")
 
         # 6. Tunnel wrap-around
@@ -190,8 +255,14 @@ class Ghost(pygame.sprite.Sprite):
             self.target_tile = (13, 14)
             return
 
+        p_col, p_row = pacman.grid_pos
+
         if self.state == "scatter":
-            self.target_tile = SCATTER_TARGETS[self.name]
+            # Cruise Elroy Blinky ignores scatter and targets Pacman
+            if self.name == "blinky" and self.elroy_mode > 0:
+                self.target_tile = (p_col, p_row)
+            else:
+                self.target_tile = SCATTER_TARGETS[self.name]
             return
 
         if self.state == "frightened":
@@ -199,7 +270,6 @@ class Ghost(pygame.sprite.Sprite):
             return
 
         # Chase state targets
-        p_col, p_row = pacman.grid_pos
         p_dx, p_dy = pacman.dir_x, pacman.dir_y
 
         if self.name == "blinky":
@@ -207,18 +277,25 @@ class Ghost(pygame.sprite.Sprite):
             self.target_tile = (p_col, p_row)
 
         elif self.name == "pinky":
-            # Pink targets 4 tiles ahead of Pacman
-            self.target_tile = (p_col + p_dx * 4, p_row + p_dy * 4)
+            # Pink targets 4 tiles ahead of Pacman, implementing Up-Direction bug
+            if p_dx == 0 and p_dy == -1:
+                self.target_tile = (p_col - 4, p_row - 4)
+            else:
+                self.target_tile = (p_col + p_dx * 4, p_row + p_dy * 4)
 
         elif self.name == "inky":
             # Cyan: Vector from Blinky to 2 tiles ahead of Pacman, doubled.
-            pivot_col = p_col + p_dx * 2
-            pivot_row = p_row + p_dy * 2
+            # Implement Up-Direction bug for the pivot tile
+            if p_dx == 0 and p_dy == -1:
+                pivot_col = p_col - 2
+                pivot_row = p_row - 2
+            else:
+                pivot_col = p_col + p_dx * 2
+                pivot_row = p_row + p_dy * 2
+                
             b_col, b_row = blinky.grid_pos
-            
             vec_col = pivot_col - b_col
             vec_row = pivot_row - b_row
-            
             self.target_tile = (pivot_col + vec_col, pivot_row + vec_row)
 
         elif self.name == "clyde":
@@ -236,9 +313,15 @@ class Ghost(pygame.sprite.Sprite):
         
         # Collect valid directions
         valid_moves = []
+        forbidden_tiles = {(12, 14), (15, 14), (12, 26), (15, 26)}
+        
         for dx, dy in DIRECTIONS:
             # Cannot reverse direction immediately in standard movements
             if dx == -self.dir_x and dy == -self.dir_y:
+                continue
+
+            # Forbidden UP-turn check (applicable to non-eaten ghosts at specific tiles)
+            if self.state != "eaten" and dy == -1 and (curr_col, curr_row) in forbidden_tiles:
                 continue
 
             target_col = curr_col + dx
