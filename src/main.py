@@ -86,6 +86,11 @@ class Game:
         self.mode_timer = 0
         self.mode_index = 0
         self.ghost_mode = "scatter"
+        self.pacman_freeze_frames = 0
+        self.ghost_eat_freeze_frames = 0
+        self.ghost_eat_pos = (0.0, 0.0)
+        self.ghost_eat_score_str = ""
+        self.ghost_eat_ghost_ref = None
 
     def reset_level(self) -> None:
         """Reset player and ghost entities back to spawn configurations (keep layout/score)."""
@@ -96,6 +101,9 @@ class Game:
         self.mode_timer = 0
         self.mode_index = 0
         self.ghost_mode = "scatter"
+        self.pacman_freeze_frames = 0
+        self.ghost_eat_freeze_frames = 0
+        self.ghost_eat_ghost_ref = None
 
     def reset_full_game(self) -> None:
         """Reset score, lives, level, board, and entities."""
@@ -175,6 +183,13 @@ class Game:
                 self.sounds.play("siren", loops=-1)
 
         elif self.state == STATE_PLAYING:
+            # Ghost Eat Freeze Frame Timer
+            if self.ghost_eat_freeze_frames > 0:
+                self.ghost_eat_freeze_frames -= 1
+                if self.ghost_eat_freeze_frames <= 0:
+                    self.ghost_eat_ghost_ref = None
+                return  # Skip all updates to freeze game state!
+
             # Scatter/Chase Mode Schedule logic
             # Pause mode cycling if any ghost is currently frightened
             any_frightened = any(g.state == "frightened" for g in self.ghosts)
@@ -231,12 +246,18 @@ class Game:
                             g.set_state(self.ghost_mode)
 
             # 1. Update Entities
-            self.pacman.update(self.board)
+            # Skip updating Pacman position if freeze frames are active
+            if self.pacman_freeze_frames > 0:
+                self.pacman_freeze_frames -= 1
+            else:
+                self.pacman.update(self.board)
+
             for ghost in self.ghosts:
                 ghost.update(self.board, self.pacman, self.blinky, self.level)
 
-            # 2. Check Pellet Eating
-            p_col, p_row = self.pacman.grid_pos
+            # 2. Check Pellet Eating (use round for arcade-accurate mouth-touch eating range)
+            p_col = round(self.pacman.x / TILE_SIZE)
+            p_row = round(self.pacman.y / TILE_SIZE)
             points, p_type = self.board.check_pellet(p_col, p_row)
             
             if points > 0:
@@ -247,7 +268,10 @@ class Game:
                 # Play munch sound
                 self.sounds.play("waka")
 
-                if p_type == 'power':
+                if p_type == 'normal':
+                    self.pacman_freeze_frames = 1
+                elif p_type == 'power':
+                    self.pacman_freeze_frames = 3
                     # Set ghosts to frightened state
                     # Speed increases, state timer set (6 seconds = 360 frames)
                     frightened_duration = max(120, 360 - (self.level * 30))
@@ -287,6 +311,12 @@ class Game:
                         eat_score = 200 * (2 ** (self.ghost_eat_combo - 1))
                         self.score += min(1600, eat_score)
                         self.sounds.play("eat_ghost")
+                        
+                        # Set 0.5-second freeze frame delay (only points displayed)
+                        self.ghost_eat_freeze_frames = 30
+                        self.ghost_eat_pos = (ghost.x, ghost.y)
+                        self.ghost_eat_score_str = str(min(1600, eat_score))
+                        self.ghost_eat_ghost_ref = ghost
                     elif ghost.state in ("chase", "scatter"):
                         # Pacman dies
                         self.state = STATE_DYING
@@ -354,22 +384,34 @@ class Game:
                 draw_entities = False
 
         if draw_entities:
-            if self.state != STATE_DYING or self.state_timer > 90:
-                # Don't draw ghosts during the actual death spinning animation
+            if self.ghost_eat_freeze_frames > 0:
+                # Ghost eat freeze frame: don't draw Pacman, and don't draw the eaten ghost
                 for ghost in self.ghosts:
-                    ghost.draw(self.screen, self.sprites)
-            
-            if self.state == STATE_DYING and self.state_timer <= 90:
-                # Draw pixel-art Pacman dying animation
-                cx = self.pacman.x + TILE_SIZE // 2
-                cy = self.pacman.y + TILE_SIZE // 2
-                progress = max(0, self.state_timer) / 90.0
-                frame_idx = int((1.0 - progress) * 10)
-                frame_idx = max(0, min(10, frame_idx))
-                sprite = self.sprites.get_pacman_dying_sprite(frame_idx)
-                self.screen.blit(sprite, (cx - 24, cy - 24))
+                    if ghost != self.ghost_eat_ghost_ref:
+                        ghost.draw(self.screen, self.sprites)
+                
+                # Draw Ghost eating points text centered at position
+                txt_pts = self.font.render(self.ghost_eat_score_str, True, COLOR_CYAN)
+                tx = self.ghost_eat_pos[0] + TILE_SIZE // 2 - txt_pts.get_width() // 2
+                ty = self.ghost_eat_pos[1] + TILE_SIZE // 2 - txt_pts.get_height() // 2
+                self.screen.blit(txt_pts, (tx, ty))
             else:
-                self.pacman.draw(self.screen, self.sprites)
+                if self.state != STATE_DYING or self.state_timer > 90:
+                    # Don't draw ghosts during the actual death spinning animation
+                    for ghost in self.ghosts:
+                        ghost.draw(self.screen, self.sprites)
+                
+                if self.state == STATE_DYING and self.state_timer <= 90:
+                    # Draw pixel-art Pacman dying animation
+                    cx = self.pacman.x + TILE_SIZE // 2
+                    cy = self.pacman.y + TILE_SIZE // 2
+                    progress = max(0, self.state_timer) / 90.0
+                    frame_idx = int((1.0 - progress) * 10)
+                    frame_idx = max(0, min(10, frame_idx))
+                    sprite = self.sprites.get_pacman_dying_sprite(frame_idx)
+                    self.screen.blit(sprite, (cx - 24, cy - 24))
+                else:
+                    self.pacman.draw(self.screen, self.sprites)
 
         # 3. Draw HUD Texts (Arcade accurate locations)
         # Score header

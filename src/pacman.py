@@ -52,30 +52,46 @@ class Pacman(pygame.sprite.Sprite):
         else:
             self.anim_tick = 0
 
-        # 2. Movement logic - only check turn decisions at grid boundaries
-        is_aligned_x = (self.x % TILE_SIZE == 0)
-        is_aligned_y = (self.y % TILE_SIZE == 0)
+        # 2. Movement logic - Cornering & Turn checking
+        center_x = round(self.x / TILE_SIZE) * TILE_SIZE
+        center_y = round(self.y / TILE_SIZE) * TILE_SIZE
 
+        # Check if player is trying to make a turn (perpendicular or change)
+        is_turning = (self.next_dir_x != self.dir_x or self.next_dir_y != self.dir_y)
+        
+        if is_turning:
+            # Check if within cornering range (4 pixels) of the nearest center
+            if self.dir_x != 0:
+                can_turn = (abs(self.x - center_x) <= 4)
+            elif self.dir_y != 0:
+                can_turn = (abs(self.y - center_y) <= 4)
+            else:
+                can_turn = True
+
+            if can_turn:
+                target_col = int(center_x // TILE_SIZE) + self.next_dir_x
+                target_row = int(center_y // TILE_SIZE) + self.next_dir_y
+                if target_col < 0:
+                    target_col = COLS - 1
+                elif target_col >= COLS:
+                    target_col = 0
+
+                if not board.is_wall(target_col, target_row, is_ghost=False):
+                    self.dir_x = self.next_dir_x
+                    self.dir_y = self.next_dir_y
+                    # Snap to corner center on turn execution (arcade cutting corners)
+                    self.x = center_x
+                    self.y = center_y
+
+        # If aligned with a tile center, check if current path hits a wall
+        is_aligned_x = (abs(self.x - center_x) < 0.01)
+        is_aligned_y = (abs(self.y - center_y) < 0.01)
         if is_aligned_x and is_aligned_y:
-            # Currently aligned with a tile. Check if we can apply the queued next direction
-            current_col, current_row = self.grid_pos
-            target_next_col = current_col + self.next_dir_x
-            target_next_row = current_row + self.next_dir_y
-
-            # Tunnel wrapping checks for target check
-            if target_next_col < 0:
-                target_next_col = COLS - 1
-            elif target_next_col >= COLS:
-                target_next_col = 0
-
-            # If the queued direction has no wall, make the turn!
-            if not board.is_wall(target_next_col, target_next_row, is_ghost=False):
-                self.dir_x = self.next_dir_x
-                self.dir_y = self.next_dir_y
+            self.x = center_x
+            self.y = center_y
             
-            # If the current direction faces a wall, stop moving
-            target_curr_col = current_col + self.dir_x
-            target_curr_row = current_row + self.dir_y
+            target_curr_col = int(center_x // TILE_SIZE) + self.dir_x
+            target_curr_row = int(center_y // TILE_SIZE) + self.dir_y
             if target_curr_col < 0:
                 target_curr_col = COLS - 1
             elif target_curr_col >= COLS:

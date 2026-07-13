@@ -67,6 +67,7 @@ class Ghost(pygame.sprite.Sprite):
         else:  # clyde
             self.exit_delay = 360  # 6 seconds delay
         self.anim_tick = 0
+        self.step_count = 0
 
     @property
     def grid_pos(self) -> Tuple[int, int]:
@@ -148,16 +149,23 @@ class Ghost(pygame.sprite.Sprite):
         elif self.state == "eaten":
             self.speed = GHOST_SPEED_EATEN  # 4
         else:
-            # Normal movement speed: 1.5 for early levels (1-4), 2.0 for later levels (5+)
-            base_speed = 1.5 if level <= 4 else GHOST_SPEED_NORMAL
-            
-            if self.name == "blinky":
-                if self.elroy_mode == 2:
-                    self.speed = 2.0 if level <= 4 else 3.0  # Cruise Elroy 2
-                else:
-                    self.speed = base_speed
-            else:
-                self.speed = base_speed
+            # We run at full normal speed 2.0. If early level, frame-skipping creates the 75% speed.
+            self.speed = GHOST_SPEED_NORMAL  # 2
+            if self.name == "blinky" and self.elroy_mode == 2 and level >= 5:
+                self.speed = 3  # Cruise Elroy 2 (level 5+)
+        
+        # Determine if we should reduce speed by skipping every 4th frame (75% speed reduction for early levels 1-4)
+        if level <= 4 and self.state in ("chase", "scatter") and not self.in_house:
+            # Cruise Elroy 2 Blinky runs at full 100% speed (no skipping)
+            if not (self.name == "blinky" and self.elroy_mode == 2):
+                self.step_count = (self.step_count + 1) % 4
+                if self.step_count == 0:
+                    # Skip update movement but still animate legs/eyes bounce if inside house (handled before this)
+                    # For active ghosts, just update animation tick and return to keep position integer-aligned
+                    self.anim_tick = (self.anim_tick + 1) % 20
+                    self.rect.x = self.x
+                    self.rect.y = self.y
+                    return
         
         # 1. Handle house exit logic
         if self.in_house:
@@ -205,10 +213,12 @@ class Ghost(pygame.sprite.Sprite):
                 self.set_state("chase")
 
         # 3. Target calculation (if aligned with grid, choose next direction)
-        is_aligned_x = (self.x % TILE_SIZE == 0)
-        is_aligned_y = (self.y % TILE_SIZE == 0)
+        is_aligned_x = (abs(self.x - round(self.x / TILE_SIZE) * TILE_SIZE) < 0.01)
+        is_aligned_y = (abs(self.y - round(self.y / TILE_SIZE) * TILE_SIZE) < 0.01)
 
         if is_aligned_x and is_aligned_y:
+            # Snap to grid to prevent alignment drift from float math
+            self.snap_to_grid()
             # Reached a tile boundary. Choose next direction
             self._update_target(pacman, blinky)
             self._make_turn_decision(board)
@@ -245,6 +255,8 @@ class Ghost(pygame.sprite.Sprite):
             self.target_tile = (13, 14)
             return
 
+        p_col, p_row = pacman.grid_pos
+
         if self.state == "scatter":
             # Cruise Elroy Blinky ignores scatter and targets Pacman
             if self.name == "blinky" and self.elroy_mode > 0:
@@ -258,7 +270,6 @@ class Ghost(pygame.sprite.Sprite):
             return
 
         # Chase state targets
-        p_col, p_row = pacman.grid_pos
         p_dx, p_dy = pacman.dir_x, pacman.dir_y
 
         if self.name == "blinky":
