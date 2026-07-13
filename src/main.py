@@ -82,12 +82,20 @@ class Game:
         self.ghost_eat_combo = 0  # 200, 400, 800, 1600 points per power pellet
         self.game_ticks = 0
 
+        # Global Scatter/Chase mode scheduler
+        self.mode_timer = 0
+        self.mode_index = 0
+        self.ghost_mode = "scatter"
+
     def reset_level(self) -> None:
         """Reset player and ghost entities back to spawn configurations (keep layout/score)."""
         self.pacman.reset()
         for ghost in self.ghosts:
             ghost.reset()
         self.ghost_eat_combo = 0
+        self.mode_timer = 0
+        self.mode_index = 0
+        self.ghost_mode = "scatter"
 
     def reset_full_game(self) -> None:
         """Reset score, lives, level, board, and entities."""
@@ -167,10 +175,65 @@ class Game:
                 self.sounds.play("siren", loops=-1)
 
         elif self.state == STATE_PLAYING:
+            # Scatter/Chase Mode Schedule logic
+            # Pause mode cycling if any ghost is currently frightened
+            any_frightened = any(g.state == "frightened" for g in self.ghosts)
+            if not any_frightened:
+                # Get the appropriate schedule
+                if self.level == 1:
+                    schedule = [
+                        ("scatter", 7 * 60), ("chase", 20 * 60),
+                        ("scatter", 7 * 60), ("chase", 20 * 60),
+                        ("scatter", 5 * 60), ("chase", 20 * 60),
+                        ("scatter", 5 * 60), ("chase", -1)
+                    ]
+                elif self.level in (2, 3, 4):
+                    schedule = [
+                        ("scatter", 7 * 60), ("chase", 20 * 60),
+                        ("scatter", 7 * 60), ("chase", 20 * 60),
+                        ("scatter", 5 * 60), ("chase", 1033 * 60),
+                        ("scatter", 1),      ("chase", -1)
+                    ]
+                else:
+                    schedule = [
+                        ("scatter", 5 * 60), ("chase", 20 * 60),
+                        ("scatter", 5 * 60), ("chase", 20 * 60),
+                        ("scatter", 5 * 60), ("chase", 1037 * 60),
+                        ("scatter", 1),      ("chase", -1)
+                    ]
+
+                if self.mode_index < len(schedule):
+                    curr_mode, duration = schedule[self.mode_index]
+                    if duration != -1:
+                        self.mode_timer += 1
+                        if self.mode_timer >= duration:
+                            self.mode_index += 1
+                            self.mode_timer = 0
+                            if self.mode_index < len(schedule):
+                                new_mode, _ = schedule[self.mode_index]
+                                if new_mode != self.ghost_mode:
+                                    self.ghost_mode = new_mode
+                                    # Force direction reversal for all active out-of-house ghosts
+                                    for g in self.ghosts:
+                                        if g.state in ("chase", "scatter") and not g.in_house:
+                                            g.reverse_direction()
+
+            # Ensure all chase/scatter ghosts are in the correct global schedule state
+            for g in self.ghosts:
+                if g.state in ("chase", "scatter"):
+                    # Check if Blinky's Cruise Elroy mode overrides scatter state
+                    if g.name == "blinky" and g.elroy_mode > 0:
+                        # Blinky remains in chase mode when Elroy status is active
+                        if g.state != "chase":
+                            g.set_state("chase")
+                    else:
+                        if g.state != self.ghost_mode:
+                            g.set_state(self.ghost_mode)
+
             # 1. Update Entities
             self.pacman.update(self.board)
             for ghost in self.ghosts:
-                ghost.update(self.board, self.pacman, self.blinky)
+                ghost.update(self.board, self.pacman, self.blinky, self.level)
 
             # 2. Check Pellet Eating
             p_col, p_row = self.pacman.grid_pos
