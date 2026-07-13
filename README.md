@@ -1,10 +1,14 @@
 # AntiGravityPacman
 
+![Game Screenshot](screen.png)
+
 An implementation of Pacman using Google's Antigravity. 
 The purpose of this game is to experience the power and enablement AntiGravity offers during development.
+Also it can be used as a starter to understand pacman, although is still work in progress.
 
-There are still some anoying bugs in this pacman implementation, however it's playable. Take it for a spin!!
-Top prio pr's to fix: ghosts movements and that terrible sound implementation.
+There are still bugs in this pacman implementation, however it's playable. Take it for a spin!!
+Top prio pr's to fix: ghosts movements and timing is still not perfect.
+
 
 ---
 

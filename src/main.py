@@ -1,4 +1,5 @@
 import sys
+import random
 import pygame
 from typing import List
 from src.settings import (
@@ -92,6 +93,15 @@ class Game:
         self.ghost_eat_score_str = ""
         self.ghost_eat_ghost_ref = None
 
+        # Fruit spawning and tracking
+        self.fruit_spawned_1 = False
+        self.fruit_spawned_2 = False
+        self.fruit_active = False
+        self.fruit_timer = 0
+        self.fruit_score_active = False
+        self.fruit_name = ""
+        self.fruit_score_points = 0
+
     def reset_level(self) -> None:
         """Reset player and ghost entities back to spawn configurations (keep layout/score)."""
         self.pacman.reset()
@@ -104,6 +114,9 @@ class Game:
         self.pacman_freeze_frames = 0
         self.ghost_eat_freeze_frames = 0
         self.ghost_eat_ghost_ref = None
+        self.fruit_active = False
+        self.fruit_score_active = False
+        self.fruit_timer = 0
 
     def reset_full_game(self) -> None:
         """Reset score, lives, level, board, and entities."""
@@ -112,6 +125,11 @@ class Game:
         self.level = 1
         self.board.reset()
         self.reset_level()
+        self.fruit_spawned_1 = False
+        self.fruit_spawned_2 = False
+        self.fruit_active = False
+        self.fruit_score_active = False
+        self.fruit_timer = 0
 
     def run(self) -> None:
         """Main game loop simulating hardware VBLANK interrupts at 60Hz."""
@@ -179,8 +197,8 @@ class Game:
         elif self.state == STATE_READY:
             self.state_timer -= 1
             if self.state_timer <= 0:
-                self.state = STATE_PLAYING
-                self.sounds.play("siren", loops=-1)
+                 self.state = STATE_PLAYING
+                 self.sounds.play("siren1", loops=-1)
 
         elif self.state == STATE_PLAYING:
             # Ghost Eat Freeze Frame Timer
@@ -284,11 +302,24 @@ class Game:
             # If all ghosts are back to normal, turn siren back on
             any_frightened = any(g.state == "frightened" for g in self.ghosts)
             if not any_frightened and self.sounds.initialized:
-                # Siren loop
-                # If siren isn't playing on channel 0, start it
+                # Determine appropriate background siren based on pellets remaining (Dossier-accurate)
+                # siren1: > 150 pellets, siren2: <= 150, siren3: <= 100, siren4: <= 50, siren5: <= 20
+                p_left = self.board.pellets_left
+                if p_left <= 20:
+                    target_siren = "siren5"
+                elif p_left <= 50:
+                    target_siren = "siren4"
+                elif p_left <= 100:
+                    target_siren = "siren3"
+                elif p_left <= 150:
+                    target_siren = "siren2"
+                else:
+                    target_siren = "siren1"
+
+                # Siren loop: switch to higher frequency siren if needed
                 chan = pygame.mixer.Channel(0)
-                if not chan.get_busy() or chan.get_sound() == self.sounds.sounds.get("frightened"):
-                    self.sounds.play("siren", loops=-1)
+                if not chan.get_busy() or chan.get_sound() != self.sounds.sounds.get(target_siren):
+                    self.sounds.play(target_siren, loops=-1)
 
             # 4. Check Level Win Condition
             if self.board.pellets_left <= 0:
@@ -323,6 +354,56 @@ class Game:
                         self.state_timer = 120  # 2 seconds dying state
                         self.sounds.stop_all()
                         break
+
+            # 6. Fruit Spawning Logic
+            pellets_eaten = self.board.initial_pellet_count - self.board.pellets_left
+            
+            # Spawn 1st fruit at 70 pellets eaten
+            if not self.fruit_spawned_1 and pellets_eaten >= 70:
+                self.fruit_spawned_1 = True
+                self.fruit_active = True
+                self.fruit_timer = random.randint(540, 600)  # 9-10 seconds
+                self.fruit_name = LEVEL_FRUITS.get(self.level, "key")
+                self.fruit_score_active = False
+
+            # Spawn 2nd fruit at 170 pellets eaten
+            if not self.fruit_spawned_2 and pellets_eaten >= 170:
+                self.fruit_spawned_2 = True
+                self.fruit_active = True
+                self.fruit_timer = random.randint(540, 600)
+                self.fruit_name = LEVEL_FRUITS.get(self.level, "key")
+                self.fruit_score_active = False
+
+            # Update active fruit timer / collision
+            if self.fruit_active:
+                self.fruit_timer -= 1
+                if self.fruit_timer <= 0:
+                    self.fruit_active = False
+                else:
+                    # Check collision with Pacman (fruit centers at col 13, row 17 on board = row 20 on screen)
+                    p_col = round(self.pacman.x / TILE_SIZE)
+                    p_row = round(self.pacman.y / TILE_SIZE)
+                    if p_col == 13 and p_row == 20:
+                        # Pacman eats the fruit!
+                        self.fruit_active = False
+                        self.fruit_score_active = True
+                        self.fruit_timer = 180  # display points score for 3 seconds
+                        
+                        FRUIT_POINTS = {
+                            "cherry": 100, "strawberry": 300, "peach": 500, "apple": 700,
+                            "grapes": 1000, "galaxian": 2000, "bell": 3000, "key": 5000
+                        }
+                        self.fruit_score_points = FRUIT_POINTS.get(self.fruit_name, 100)
+                        self.score += self.fruit_score_points
+                        if self.score > self.high_score:
+                            self.high_score = self.score
+                        self.sounds.play("eat_ghost")  # Play eat_ghost wavelet for fruit eating feedback
+
+            # Update eaten fruit score points display timer
+            if self.fruit_score_active:
+                self.fruit_timer -= 1
+                if self.fruit_timer <= 0:
+                    self.fruit_score_active = False
 
         elif self.state == STATE_DYING:
             self.state_timer -= 1
@@ -412,6 +493,20 @@ class Game:
                     self.screen.blit(sprite, (cx - 24, cy - 24))
                 else:
                     self.pacman.draw(self.screen, self.sprites)
+
+            # Draw active fruit
+            if self.fruit_active:
+                sprite = self.sprites.get_fruit_sprite(self.fruit_name)
+                cx = 13 * TILE_SIZE + TILE_SIZE // 2
+                cy = 20 * TILE_SIZE + TILE_SIZE // 2
+                self.screen.blit(sprite, (cx - 23, cy - 23))
+
+            # Draw eaten fruit score points text
+            if self.fruit_score_active:
+                txt_pts = self.font.render(str(self.fruit_score_points), True, COLOR_PINK)
+                cx = 13 * TILE_SIZE + TILE_SIZE // 2
+                cy = 20 * TILE_SIZE + TILE_SIZE // 2
+                self.screen.blit(txt_pts, (cx - txt_pts.get_width() // 2, cy - txt_pts.get_height() // 2))
 
         # 3. Draw HUD Texts (Arcade accurate locations)
         # Score header
